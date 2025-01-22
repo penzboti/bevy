@@ -25,6 +25,11 @@ fn main() {
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .init_state::<GameState>()
         .add_systems(Startup, setup_canvas)
+        
+        // windows inupt delay fix
+        // the goat: https://spelcodes.nl/how-to-fix-bevy-input-delay-a-complete-troubleshooting-guide/
+        .add_plugins(bevy_framepace::FramepacePlugin) 
+
         // starter menu
         .add_systems(OnEnter(GameState::Menu), setup_menu)
         .add_systems(Update, menu_buttons.run_if(in_state(GameState::Menu)))
@@ -91,27 +96,59 @@ fn setup_canvas(
 fn setup_menu(
     mut commands: Commands,
 ) {
-    commands.spawn((
-        Button, 
-        ButtonType::Play,
-        Transform::from_translation(Vec3::new(0., 0., 0.)), 
-        Despawn
-    ))
-    .with_child((
-        Text::new("Start"), 
-        TextColor(Color::srgb(0.9, 0.9, 0.9)),
-    ));
-
-    // commands.spawn((
-    //     Button, 
-    //     ButtonType::Exit,
-    //     Transform::from_translation(Vec3::new(0., 0., 0.)), 
-    //     Despawn
-    // ))
-    // .with_child((
-    //     Text::new("Exit Game"), 
-    //     TextColor(Color::srgb(0.9, 0.9, 0.9)),
-    // ));
+    commands
+    // center ui
+    .spawn((Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        ..default()
+    }, Despawn))
+    .with_children(|parent| {
+        // play button
+        parent.spawn((
+            Button, 
+            Node {
+                width: Val::Px(150.0),
+                height: Val::Px(65.0),
+                // rectangle border
+                border: UiRect::all(Val::Px(5.0)),
+                // horizontally center child text
+                justify_content: JustifyContent::Center,
+                // vertically center child text
+                align_items: AlignItems::Center,
+                // space between this and other ui elements (same level)
+                margin: UiRect::all(Val::Px(20.0)),
+                ..default()
+            },
+            BorderColor(Color::WHITE),
+            ButtonType::Play,
+        ))
+        .with_child((
+            Text::new("Start"), 
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        ));
+        // exit button
+        parent.spawn((
+            Button, 
+            Node {
+                width: Val::Px(150.0),
+                height: Val::Px(65.0),
+                border: UiRect::all(Val::Px(5.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::all(Val::Px(20.0)),
+                ..default()
+            },
+            BorderColor(Color::WHITE),
+            ButtonType::Exit,
+        ))
+        .with_child((
+            Text::new("Exit Game"), 
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        ));
+    });
 }
 
 fn menu_buttons(
@@ -250,16 +287,52 @@ fn update_obstacles(
 fn setup_death_screen(
     mut commands: Commands,
 ) {
-    // commands.spawn((Text::new("You died"), TextColor(Color::srgb(1., 0., 0.))));
-    commands.spawn((
-        Button, 
-        Transform::from_translation(Vec3::new(0., 0., 0.)), 
-        Despawn
-    ))
-    .with_child((
-        Text::new("Exit"), 
-        TextColor(Color::srgb(0.9, 0.9, 0.9)),
-    ));
+    commands
+    .spawn((Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(85.0),
+        flex_direction: FlexDirection::Column,
+        // flex-dir flips these two values
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::FlexEnd,
+        ..default()
+    }, Despawn))
+    .with_children(|parent| {
+        parent.spawn((
+            Node {
+                width: Val::Px(150.0),
+                height: Val::Px(65.0),
+                border: UiRect::all(Val::Px(5.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::all(Val::Px(20.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK),
+        ))
+        .with_child((
+            Text::new("You died"), 
+            TextColor(Color::srgb(1., 0., 0.)), 
+        ));
+        parent.spawn((
+            Button, 
+            Node {
+                width: Val::Px(150.0),
+                height: Val::Px(65.0),
+                border: UiRect::all(Val::Px(5.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::all(Val::Px(20.0)),
+                ..default()
+            },
+            BorderColor(Color::WHITE),
+            BackgroundColor(Color::BLACK),
+        ))
+        .with_child((
+            Text::new("Menu"), 
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        ));
+    });
 }
 
 fn end_game_button(

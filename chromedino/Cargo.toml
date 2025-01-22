@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = "0.15.1"
 rand = "*"
+bevy_framepace = "*"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
