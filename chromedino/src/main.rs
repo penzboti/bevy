@@ -17,19 +17,23 @@ const DINO_HEIGHT: f32 = 60.;
 const DINO_WIDTH: f32 = 20.;
 
 // obstacles
-const OBSTACLE_AMMOUNT: i32 = 3;
+const OBSTACLE_AMMOUNT: i32 = 4;
 const OBSTACLE_WIDTH_MIN: f32 = 20.;
 const OBSTACLE_WIDTH_MAX: f32 = 50.;
 const OBSTACLE_HEIGHT_MIN: f32 = 30.;
 const OBSTACLE_HEIGHT_MAX: f32 = 74.;
-const OBSTACLE_SPACING_MAX: f32 = 400.;
+const OBSTACLE_SPACING_MAX: f32 = 125.; // in both directions
 const OBSTACLE_SPACING: f32 = 500.;
 
-fn main() {
-    //todo: rotate camera in the endgame (at around 100sec prob); rotate it more randomly with time
-    //todo: add a score system (save file)
-    //todo: add assets (not sure if it would work with random width & height but i guess we'll see)
+const SECONDS_UNTIL_CAMERA_ROTATE: f32 = 100.;
+const CAMERA_ROTATE_SECONDS_FULL: f32 = 20.;
+const ROTATION_NUMBER: f32 = 5.;
 
+//? rotate camera more randomly with time; switch directions
+//todo: add a score system (save file)
+//todo: add assets (not sure if it would work with random width & height but i guess we'll see)
+
+fn main() {
     App::new()
         // init
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
@@ -49,7 +53,7 @@ fn main() {
         .add_systems(OnExit(GameState::Menu), despawn_screen)
         // game
         .add_systems(OnEnter(GameState::Game), (setup_player, setup_obstacles))
-        .add_systems(Update, ((update_game_speed, update_obstacles, update_dino).chain()).run_if(in_state(GameState::Game)))
+        .add_systems(Update, ((update_game_speed, update_obstacles, update_dino).chain(), rotate_camera).run_if(in_state(GameState::Game)))
         // death screen
         .add_systems(OnEnter(GameState::Dead), setup_death_screen)
         .add_systems(Update, end_game_button.run_if(in_state(GameState::Dead)))
@@ -88,6 +92,12 @@ struct Obstacle;
 struct GameSpeedTimer(Timer);
 
 #[derive(Resource)]
+struct CameraRotationController {
+    timer_before: Timer,
+    timer_repeat: Timer,
+}
+
+#[derive(Resource)]
 pub struct GameManager{
     pub window_dimensions: Vec2,
     pub game_speed: f32,
@@ -108,6 +118,14 @@ fn setup_canvas(
 
     // game speed timer
     commands.insert_resource(GameSpeedTimer(Timer::from_seconds(SECONDS_UNTIL_FULL_SPEED, TimerMode::Once)));
+
+    // camera rotation controller
+    commands.insert_resource(
+        CameraRotationController {
+            timer_before: Timer::from_seconds(SECONDS_UNTIL_CAMERA_ROTATE, TimerMode::Once),
+            timer_repeat: Timer::from_seconds(CAMERA_ROTATE_SECONDS_FULL, TimerMode::Repeating),
+        }
+    );
 }
 
 fn hover_buttons(
@@ -232,6 +250,7 @@ fn setup_player(
     mut commands: Commands,
     game_manager: Res<GameManager>,
     mut game_speed_timer: ResMut<GameSpeedTimer>,
+    mut camera_rotation_controller: ResMut<CameraRotationController>,
 ) {
     // player
     commands.spawn((
@@ -259,7 +278,9 @@ fn setup_player(
         Despawn)
     );
 
-    game_speed_timer.0.reset();
+    game_speed_timer.reset();
+    camera_rotation_controller.timer_before.reset();
+    camera_rotation_controller.timer_repeat.reset();
 }
 
 fn setup_obstacles(
@@ -292,7 +313,7 @@ fn generate_rand(spacing_percent: f32) -> (Vec2,f32) {
     (Vec2::new(
         rand.gen_range(width.x..width.y).floor(),
         rand.gen_range(height.x..height.y).floor()
-    ), (rand.gen_range(0f32..OBSTACLE_SPACING_MAX)*spacing_percent).floor() - OBSTACLE_SPACING_MAX/2.
+    ), (rand.gen_range(-OBSTACLE_SPACING_MAX..OBSTACLE_SPACING_MAX)*spacing_percent).floor()
     )
 }
 
@@ -308,9 +329,12 @@ fn update_dino(
             dino.jumped = true;
             dino.velocity = JUMP_FORCE;
         }
+
+        // debug kill
         if keys.just_pressed(KeyCode::KeyQ){
             game_state.set(GameState::Dead);
         }
+
         dino.velocity -= time.delta_secs() * GRAVITY;
         transform.translation.y += dino.velocity * time.delta_secs();
         if transform.translation.y < PLAIN_HEIGHT + DINO_HEIGHT / 2. {
@@ -358,15 +382,47 @@ fn update_obstacles(
 fn rotate_camera(
     mut query: Query<&mut Transform, With<Camera2d>>,
     time: Res<Time>,
-    keys: Res<ButtonInput<KeyCode>>,
+    mut camera_rotation_controller: ResMut<CameraRotationController>,    
+    keys: Res<ButtonInput<KeyCode>>, // DEBUG
 ) {
-    keys.get_pressed().for_each(|key| {
-        if key == &KeyCode::KeyR {
-            for mut transform in query.iter_mut() {
-                transform.rotate(Quat::from_rotation_z(time.delta_secs()));
-            }
+    if camera_rotation_controller.timer_before.elapsed_secs() == 0. {
+        for mut transform in &mut query.iter_mut() {
+            transform.rotation = Quat::from_rotation_z(0.0);
         }
-    });
+    }
+    if !camera_rotation_controller.timer_before.finished() {
+        camera_rotation_controller.timer_before.tick(time.delta());
+    }
+    // debug start
+    if keys.just_pressed(KeyCode::KeyR) {
+        camera_rotation_controller.timer_before.tick(std::time::Duration::from_secs_f32(SECONDS_UNTIL_CAMERA_ROTATE));
+    }
+
+    if camera_rotation_controller.timer_before.finished() {
+        camera_rotation_controller.timer_repeat.tick(time.delta());
+        for mut transform in query.iter_mut() {
+            if camera_rotation_controller.timer_repeat.finished() {
+                transform.rotation = Quat::from_rotation_z(0.0);
+                return;
+            }
+
+            // this was made with chatgpt:
+
+            let t = (camera_rotation_controller.timer_repeat.elapsed_secs() / CAMERA_ROTATE_SECONDS_FULL).clamp(0.0, 1.0);
+
+            // Smoothstep easing
+            let eased_t = t * t * (3.0 - 2.0 * t);
+
+            // Total rotation in radians
+            let total_rotation = ROTATION_NUMBER * std::f32::consts::TAU;
+
+            // Interpolate rotation
+            let interpolated_rotation = total_rotation * eased_t;
+
+            // Apply the rotation
+            transform.rotation = Quat::from_rotation_z(interpolated_rotation);
+        }
+    }
 }
 
 fn setup_death_screen(
