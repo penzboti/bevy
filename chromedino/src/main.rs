@@ -22,14 +22,13 @@ const OBSTACLE_WIDTH_MIN: f32 = 20.;
 const OBSTACLE_WIDTH_MAX: f32 = 50.;
 const OBSTACLE_HEIGHT_MIN: f32 = 30.;
 const OBSTACLE_HEIGHT_MAX: f32 = 74.;
-const OBSTACLE_SPACING_MAX: f32 = 125.; // in both directions
+const OBSTACLE_SPACING_MAX: f32 = 125.; // in both directions; multiplier changes with full-speed-timer
 const OBSTACLE_SPACING: f32 = 500.;
 
 const SECONDS_UNTIL_CAMERA_ROTATE: f32 = 100.;
 const CAMERA_ROTATE_SECONDS_FULL: f32 = 20.;
 const ROTATION_NUMBER: f32 = 5.;
 
-//? rotate camera more randomly with time; switch directions
 //todo: add a score system (save file)
 //todo: add assets (not sure if it would work with random width & height but i guess we'll see)
 
@@ -91,10 +90,20 @@ struct Obstacle;
 #[derive(Resource, Deref, DerefMut)]
 struct GameSpeedTimer(Timer);
 
+#[derive(PartialEq, Clone, Debug)]
+enum CameraRotationPhase {
+    Normal,
+    ChangeDirectionWhenTimer,
+    ChangeDirectionWhenJump(bool), // or when you jump over the block (which i think is better)
+    Trippy
+}
+
 #[derive(Resource)]
 struct CameraRotationController {
     timer_before: Timer,
     timer_repeat: Timer,
+    direction: bool, // true for right, false for left
+    rotation_phase: CameraRotationPhase,
 }
 
 #[derive(Resource)]
@@ -124,6 +133,8 @@ fn setup_canvas(
         CameraRotationController {
             timer_before: Timer::from_seconds(SECONDS_UNTIL_CAMERA_ROTATE, TimerMode::Once),
             timer_repeat: Timer::from_seconds(CAMERA_ROTATE_SECONDS_FULL, TimerMode::Repeating),
+            direction: true,
+            rotation_phase: CameraRotationPhase::Normal,
         }
     );
 }
@@ -323,6 +334,7 @@ fn update_dino(
     keys: Res<ButtonInput<KeyCode>>,
     obstacle_query: Query<&Transform, (With<Obstacle>,Without<Dino>)>,
     mut game_state: ResMut<NextState<GameState>>,
+    mut camera_rotation_controller: ResMut<CameraRotationController>,
 ) {
     if let Ok((mut dino, mut transform)) = dino_query.get_single_mut() {
         if keys.just_pressed(KeyCode::Space) && dino.jumped == false{
@@ -337,13 +349,27 @@ fn update_dino(
 
         dino.velocity -= time.delta_secs() * GRAVITY;
         transform.translation.y += dino.velocity * time.delta_secs();
+
+        // reset on ground
         if transform.translation.y < PLAIN_HEIGHT + DINO_HEIGHT / 2. {
             dino.velocity = 0.;
             dino.jumped = false;
+            if camera_rotation_controller.rotation_phase == CameraRotationPhase::ChangeDirectionWhenJump(true) {
+                camera_rotation_controller.rotation_phase = CameraRotationPhase::ChangeDirectionWhenJump(false);
+            }
             transform.translation.y = PLAIN_HEIGHT + DINO_HEIGHT / 2.;
         }
 
         for obs_transform in obstacle_query.iter() {
+            // the dino is on top of the obstacle
+            if transform.translation.y - DINO_HEIGHT/2. > obs_transform.translation.y + obs_transform.scale.y / 2. &&
+            obs_transform.translation.x < 0. && obs_transform.translation.x > -DINO_WIDTH {
+                if camera_rotation_controller.rotation_phase == CameraRotationPhase::ChangeDirectionWhenJump(false) {
+                    camera_rotation_controller.direction = !camera_rotation_controller.direction;
+                    camera_rotation_controller.rotation_phase = CameraRotationPhase::ChangeDirectionWhenJump(true);
+                }
+            }
+
             if Aabb2d::new(
                 transform.translation.truncate(),
                 transform.scale.truncate() / 2.,
@@ -393,22 +419,64 @@ fn rotate_camera(
     if !camera_rotation_controller.timer_before.finished() {
         camera_rotation_controller.timer_before.tick(time.delta());
     }
-    // debug start
+
+    // debug
     if keys.just_pressed(KeyCode::KeyR) {
         camera_rotation_controller.timer_before.tick(std::time::Duration::from_secs_f32(SECONDS_UNTIL_CAMERA_ROTATE));
     }
+    if keys.just_pressed(KeyCode::KeyS) {
+        camera_rotation_controller.direction = !camera_rotation_controller.direction;
+    }
+    if keys.just_pressed(KeyCode::KeyF) {
+        camera_rotation_controller.rotation_phase = match camera_rotation_controller.rotation_phase {
+            CameraRotationPhase::Normal => CameraRotationPhase::ChangeDirectionWhenTimer,
+            CameraRotationPhase::ChangeDirectionWhenTimer => CameraRotationPhase::ChangeDirectionWhenJump(false),
+            CameraRotationPhase::ChangeDirectionWhenJump(_) => CameraRotationPhase::Trippy,
+            CameraRotationPhase::Trippy => CameraRotationPhase::Normal,
+        }
+    }
 
     if camera_rotation_controller.timer_before.finished() {
+        let mode = camera_rotation_controller.rotation_phase.clone();
         camera_rotation_controller.timer_repeat.tick(time.delta());
         for mut transform in query.iter_mut() {
             if camera_rotation_controller.timer_repeat.finished() {
+                if mode == CameraRotationPhase::ChangeDirectionWhenTimer {
+                    camera_rotation_controller.direction = !camera_rotation_controller.direction;
+                }
                 transform.rotation = Quat::from_rotation_z(0.0);
                 return;
             }
 
-            // this was made with chatgpt:
-
             let t = (camera_rotation_controller.timer_repeat.elapsed_secs() / CAMERA_ROTATE_SECONDS_FULL).clamp(0.0, 1.0);
+
+            // smoothly transition to target angle
+            // DONT WORK; PASSING IN NOT SPEED, BUT PERCENTAGE!!!
+            // if camera_rotation_controller.target_angle.is_some() {
+            //     let start_rotation = transform.rotation.to_euler(EulerRot::XYZ).2;
+            //     if camera_rotation_controller.target_angle.unwrap() == f32::INFINITY {
+            //         camera_rotation_controller.target_angle = Some(-start_rotation);
+            //     }
+            //     let target_rotation = camera_rotation_controller.target_angle.unwrap();
+
+            //     let interpolated_rotation = start_rotation + (target_rotation - start_rotation) * t;
+
+            //     if (target_rotation - start_rotation).abs() < 0.1 {
+            //         println!("STOP\n");
+            //         transform.rotation = Quat::from_rotation_z(target_rotation);
+            //         camera_rotation_controller.target_angle = None;
+            //     }
+                
+            //     println!("--");
+            //     println!("{} {}", interpolated_rotation, target_rotation);
+            //     println!("{} {}", start_rotation, transform.rotation.z);
+
+            //     transform.rotation = Quat::from_rotation_z(interpolated_rotation);
+            //     return;
+            // }
+
+            
+            // this was made with chatgpt:
 
             // Smoothstep easing
             let eased_t = t * t * (3.0 - 2.0 * t);
@@ -417,7 +485,15 @@ fn rotate_camera(
             let total_rotation = ROTATION_NUMBER * std::f32::consts::TAU;
 
             // Interpolate rotation
-            let interpolated_rotation = total_rotation * eased_t;
+            let mut interpolated_rotation = total_rotation * eased_t;
+
+            if mode == CameraRotationPhase::Trippy {
+                camera_rotation_controller.direction = !camera_rotation_controller.direction;
+            }
+
+            if !camera_rotation_controller.direction {
+                interpolated_rotation *= -1.0;
+            }
 
             // Apply the rotation
             transform.rotation = Quat::from_rotation_z(interpolated_rotation);
