@@ -10,10 +10,13 @@ Followed the bevy_ecs_ldtk book very closely (copied & unchanged code).
 
 # todo
 - [x] basic project start (movement, test level)
-- [ ] get movement buffering
+- [x] get movement buffering
+- [ ] train track placement
 - [ ] load levels (multiple LdtkWorldBundles)
-- [ ] scoring
+- [ ] unloading
+- [ ] stations and passengers
+- [ ] scoring & save top score
 - [ ] assets
-- [ ] levels
+- [ ] design levels
 - [ ] ui
 - [ ] menus
