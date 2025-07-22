@@ -20,6 +20,7 @@ fn main() {
             Update,
             (handle_keypress, game_tick, translate_grid_coords_entities).chain(),
         )
+        .add_systems(Update, animate_player)
         .run();
 }
 
@@ -81,13 +82,32 @@ struct Tile {
     pub grid_coords: GridCoords,
 }
 
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq, Debug)]
 enum Direction {
     #[default]
     North,
     South,
     East,
     West,
+}
+
+impl Direction {
+    fn get_opposite(&self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
+        }
+    }
+    fn calculate_vector(&self) -> GridCoords {
+        match self {
+            Direction::North => GridCoords::new(0, 1),
+            Direction::West => GridCoords::new(-1, 0),
+            Direction::South => GridCoords::new(0, -1),
+            Direction::East => GridCoords::new(1, 0),
+        }
+    }
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -152,37 +172,25 @@ fn setup_level(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn handle_keypress(mut player_query: Query<&mut Player>, keys: Res<ButtonInput<KeyCode>>) {
     if let Ok(mut player) = player_query.single_mut() {
         let dir = player.direction.clone();
-        if keys.just_pressed(KeyCode::KeyW) {
-            if dir == Direction::North {
-                player.list_next_directions = vec![];
+        let next_dir: Direction = if keys.just_pressed(KeyCode::KeyW) {
+            Direction::North
+        } else if keys.just_pressed(KeyCode::KeyA) {
+            Direction::West
+        } else if keys.just_pressed(KeyCode::KeyS) {
+            Direction::South
+        } else if keys.just_pressed(KeyCode::KeyD) {
+            Direction::East
+        } else {
+            return;
+        };
+
+        if player.list_next_directions.clone().len() < 2 {
+            if let Some(last) = player.list_next_directions.clone().last() {
+                if last == &next_dir {
+                    return;
+                }
             }
-            if dir != Direction::South {
-                player.list_next_directions.push(Direction::North);
-            }
-        }
-        if keys.just_pressed(KeyCode::KeyA) {
-            if dir == Direction::West {
-                player.list_next_directions = vec![];
-            }
-            if dir != Direction::East {
-                player.list_next_directions.push(Direction::West);
-            }
-        }
-        if keys.just_pressed(KeyCode::KeyS) {
-            if dir == Direction::South {
-                player.list_next_directions = vec![];
-            }
-            if dir != Direction::North {
-                player.list_next_directions.push(Direction::South);
-            }
-        }
-        if keys.just_pressed(KeyCode::KeyD) {
-            if dir == Direction::East {
-                player.list_next_directions = vec![];
-            }
-            if dir != Direction::West {
-                player.list_next_directions.push(Direction::East);
-            }
+            player.list_next_directions.push(next_dir);
         }
     }
 }
@@ -198,28 +206,34 @@ fn game_tick(
 
     if timer.finished() {
         if let Ok((mut player, mut grid_coords)) = player_query.single_mut() {
-            player.direction = player
+            // can't pop_front, so reversing then reverse back
+            player.list_next_directions.reverse();
+            let mut attempted_direction = player
                 .list_next_directions
                 .pop()
                 .unwrap_or(player.direction.clone())
                 .clone();
-            // if a wall is present and the last action was to ride that, then don't clear
-            // for that i need the map (loaded and queried)
-            player.list_next_directions = vec![];
-            let dir = player.direction.clone();
-            // train.tracks.push(Track {
-            //     grid_coords: player.grid_coords.clone(),
-            //     direction: dir.clone(),
-            // });
-            let destination = *grid_coords
-                + match dir {
-                    Direction::North => GridCoords::new(0, 1),
-                    Direction::West => GridCoords::new(-1, 0),
-                    Direction::South => GridCoords::new(0, -1),
-                    Direction::East => GridCoords::new(1, 0),
-                };
+            player.list_next_directions.reverse();
+
+            let current_direction = player.direction.clone();
+
+            if attempted_direction == current_direction.get_opposite() {
+                attempted_direction = current_direction.clone();
+            }
+
+            let destination = *grid_coords + attempted_direction.calculate_vector();
+
             if !level_walls.in_wall(&destination) {
+                // not wall
                 *grid_coords = destination;
+                player.direction = attempted_direction;
+            } else {
+                // wall, check for hugs
+                let wall_hug_destination = *grid_coords + current_direction.calculate_vector();
+                if !level_walls.in_wall(&wall_hug_destination) {
+                    player.list_next_directions.insert(0, attempted_direction);
+                    *grid_coords = wall_hug_destination;
+                }
             }
         }
     }
@@ -263,4 +277,18 @@ fn cache_wall_locations(
         }
     }
     Ok(())
+}
+
+fn animate_player(mut player_query: Query<(&mut Sprite, &Player)>, timer: Res<GameTickTimer>) {
+    if timer.finished() {
+        let (mut sprite, player) = player_query.single_mut().unwrap();
+        if let Some(atlas) = &mut sprite.texture_atlas {
+            atlas.index = match player.direction {
+                Direction::West => 8,
+                Direction::South => 9,
+                Direction::North => 10,
+                Direction::East => 11,
+            };
+        }
+    }
 }
