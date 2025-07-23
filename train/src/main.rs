@@ -19,8 +19,8 @@ fn main() {
         .run();
 }
 
-pub const GRID_SIZE: i32 = 16;
-const SECONDS_PER_TICK: f32 = 1.;
+pub const GRID_SIZE: i32 = 16; // pixel size i think
+const SECONDS_PER_TICK: f32 = 0.5;
 pub const CARRIAGE_NUMBER: isize = 2;
 
 fn setup(mut commands: Commands) {

@@ -41,6 +41,8 @@ struct CarriageBundle {
     sprite_sheet: Sprite,
     #[grid_coords]
     grid_coords: GridCoords,
+    #[worldly]
+    worldly: Worldly,
 }
 
 #[derive(Default, Debug, Component)]
@@ -55,6 +57,8 @@ struct TrackBundle {
     sprite_sheet: Sprite,
     #[grid_coords]
     grid_coords: GridCoords,
+    #[worldly]
+    worldly: Worldly,
 }
 
 pub fn init_train(
@@ -68,6 +72,9 @@ pub fn init_train(
 ) {
     for level_event in level_events.read() {
         if let LevelEvent::Spawned(level_iid) = level_event {
+            if level_iid != &LevelIid::from(crate::level::START_IID.to_owned()) {
+                return;
+            }
             for track in track_query {
                 train.tracks.push(*track);
             }

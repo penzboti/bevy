@@ -28,6 +28,8 @@ struct PlayerBundle {
     sprite_sheet: Sprite,
     #[grid_coords]
     grid_coords: GridCoords,
+    #[worldly]
+    worldly: Worldly,
 }
 
 fn animate_player(mut player_query: Query<(&mut Sprite, &Player), Changed<Player>>) {
@@ -85,7 +87,6 @@ fn move_player(
     if timer.finished() {
         if let Ok((mut player, mut grid_coords)) = player_query.single_mut() {
             let current_direction = player.direction.clone();
-            println!("{:?}", player.list_next_directions);
 
             // we pop from the back, and we want the first pressed button to come first in line;
             // TODO: .remove()?
