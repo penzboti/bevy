@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
+use crate::CARRIAGE_NUMBER;
 use crate::Direction;
 use crate::GameTickTimer;
 use crate::player;
@@ -57,6 +58,9 @@ struct TrackBundle {
 }
 
 pub fn init_train(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut train: ResMut<Train>,
     track_query: Query<&GridCoords, With<Track>>,
     carriage_query: Query<&GridCoords, With<Carriage>>,
@@ -70,13 +74,40 @@ pub fn init_train(
             for carriage in carriage_query {
                 train.carriages.push(*carriage);
             }
-            train.tracks.sort_by(|a, b| a.y.cmp(&b.y));
             println!("{:?}", train.tracks);
             println!("{:?}", train.carriages);
+            train.tracks.sort_by(|a, b| a.y.cmp(&b.y));
+            let first_position = train.carriages[0].clone();
+
+            // NOTE: only the head carriage is spawned in from ldtk
+            for i in 0..CARRIAGE_NUMBER {
+                let position = first_position + GridCoords::new(0, -1 - i as i32);
+                commands.spawn((
+                    Sprite::from_atlas_image(
+                        asset_server.load("sprites/Carriage.png"),
+                        TextureAtlas {
+                            layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+                                UVec2::splat(16),
+                                8,
+                                8,
+                                None,
+                                None,
+                            )),
+                            index: 8,
+                        },
+                    ),
+                    Transform {
+                        translation: Vec3::new(0., 0., 999.), // this z index is diabolical i just
+                        // didn't want to mess around with it
+                        ..Default::default()
+                    },
+                    position,
+                    Carriage {},
+                ));
+                train.carriages.push(position);
+            }
         }
     }
-    // TODO: add more carriages
-    // NOTE: only the head carriage is spawned in from ldtk
 }
 
 fn spawn_track(
@@ -135,7 +166,6 @@ fn spawn_track(
     train.tracks.push(coords.clone());
 }
 
-// TODO: untested with multiple carriages
 fn move_carriages(
     mut train: ResMut<Train>,
     player_query: Query<&player::Player>,
@@ -145,10 +175,12 @@ fn move_carriages(
 ) {
     if timer.finished() {
         let mut carriages = train.carriages.clone();
+        let len = carriages.clone().len();
         carriages.reverse();
-        for i in 1..carriages.len() {
-            carriages[i] = carriages[i - 1];
+        for i in 0..len - 1 {
+            carriages[i] = carriages[i + 1];
         }
+        carriages.reverse();
         let current_coords = carriages[0];
         let current_index = train
             .tracks
@@ -162,15 +194,14 @@ fn move_carriages(
             .unwrap_or(&current_coords);
 
         carriages[0] = *next_coords;
-        carriages.reverse();
-        for mut coords in carriage_query.iter_mut() {
-            // println!("from: {:?}", coords);
-            for (index, carriage) in train.carriages.iter().enumerate() {
-                if *carriage == coords.clone() {
-                    *coords = carriages[index];
-                }
-            }
-            // println!("to: {:?}", coords);
+        let index_table: Vec<usize> = carriage_query
+            .iter()
+            .clone()
+            .map(|coords| train.carriages.iter().position(|c| c == coords).unwrap())
+            .collect();
+        for (i, mut coords) in carriage_query.iter_mut().enumerate() {
+            let index = index_table[i];
+            *coords = carriages[index];
         }
         train.carriages = carriages;
     }

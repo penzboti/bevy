@@ -21,6 +21,7 @@ fn main() {
 
 pub const GRID_SIZE: i32 = 16;
 const SECONDS_PER_TICK: f32 = 1.;
+pub const CARRIAGE_NUMBER: isize = 2;
 
 fn setup(mut commands: Commands) {
     // camera
@@ -74,49 +75,8 @@ impl Direction {
 pub struct GameTickTimer(Timer);
 
 // TODO: separate tick system for each plugin (so separate player from here)
-fn game_tick(
-    mut player_query: Query<(&mut player::Player, &mut GridCoords)>,
-    time: Res<Time>,
-    mut timer: ResMut<GameTickTimer>,
-    level_walls: Res<level::LevelWalls>,
-) {
+fn game_tick(time: Res<Time>, mut timer: ResMut<GameTickTimer>) {
     timer.tick(time.delta());
-
-    if timer.finished() {
-        if let Ok((mut player, mut grid_coords)) = player_query.single_mut() {
-            // can't pop_front, so reversing then reverse back
-            player.list_next_directions.reverse();
-            let mut attempted_direction = player
-                .list_next_directions
-                .pop()
-                .unwrap_or(player.direction.clone())
-                .clone();
-            player.list_next_directions.reverse();
-
-            player.previous_direction = player.direction.clone().get_opposite();
-            let current_direction = player.direction.clone();
-
-            if attempted_direction == current_direction.get_opposite() {
-                attempted_direction = current_direction.clone();
-            }
-
-            let destination = *grid_coords + attempted_direction.calculate_vector();
-            let wall_hug_destination = *grid_coords + current_direction.calculate_vector();
-
-            if !level_walls.in_wall(&destination) {
-                // not wall
-                *grid_coords = destination;
-                player.direction = attempted_direction;
-            } else {
-                // wall, check for hugs
-                if !level_walls.in_wall(&wall_hug_destination) {
-                    player.list_next_directions.insert(0, attempted_direction);
-                    *grid_coords = wall_hug_destination;
-                }
-                // TODO: check if the second action one is good
-            }
-        }
-    }
 }
 
 fn translate_grid_coords_entities(
