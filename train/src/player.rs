@@ -5,7 +5,6 @@ use crate::Direction;
 use crate::GameTickTimer;
 
 pub struct PlayerPlugin;
-
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, handle_keypress)
@@ -16,10 +15,10 @@ impl Plugin for PlayerPlugin {
 
 #[derive(Default, Component)]
 pub struct Player {
+    pub previous_direction: Direction,
     pub direction: Direction,
     pub list_next_directions: Vec<Direction>,
 }
-
 #[derive(Default, Bundle, LdtkEntity)]
 struct PlayerBundle {
     player: Player,

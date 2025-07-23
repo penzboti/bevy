@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use crate::GRID_SIZE;
 
 pub struct LevelPlugin;
-
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, cache_wall_locations)
@@ -21,7 +20,6 @@ struct Tile {
 
 #[derive(Default, Component)]
 struct Wall;
-
 #[derive(Default, Bundle, LdtkIntCell)]
 struct WallBundle {
     wall: Wall,
@@ -52,8 +50,7 @@ fn setup_level(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
     // select initial level
     commands.insert_resource(LevelSelection::index(0));
-    // setup entities
-    // commands.regiset_ldtk_entity::<PlayerBundle>("Player");
+    // setup walls
     commands.init_resource::<LevelWalls>();
 }
 

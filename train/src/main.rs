@@ -10,10 +10,9 @@ mod train;
 
 fn main() {
     App::new()
-        // init
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(LdtkPlugin)
-        .add_plugins((level::LevelPlugin, player::PlayerPlugin))
+        .add_plugins((level::LevelPlugin, player::PlayerPlugin, train::TrainPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, game_tick)
         .add_systems(Update, translate_grid_coords_entities)
@@ -41,13 +40,6 @@ fn setup(mut commands: Commands) {
         SECONDS_PER_TICK,
         TimerMode::Repeating,
     )));
-    // init tracks and train
-    commands.insert_resource(train::Train {
-        carriages: vec![train::Carriage {
-            position: GridCoords::new(0, 0),
-        }],
-        tracks: vec![],
-    });
 }
 
 #[derive(Default, Clone, PartialEq, Debug)]
@@ -81,9 +73,9 @@ impl Direction {
 #[derive(Resource, Deref, DerefMut)]
 pub struct GameTickTimer(Timer);
 
+// TODO: separate tick system for each plugin (so separate player from here)
 fn game_tick(
     mut player_query: Query<(&mut player::Player, &mut GridCoords)>,
-    // mut train: ResMut<Train>,
     time: Res<Time>,
     mut timer: ResMut<GameTickTimer>,
     level_walls: Res<level::LevelWalls>,
@@ -101,6 +93,7 @@ fn game_tick(
                 .clone();
             player.list_next_directions.reverse();
 
+            player.previous_direction = player.direction.clone().get_opposite();
             let current_direction = player.direction.clone();
 
             if attempted_direction == current_direction.get_opposite() {
@@ -108,6 +101,7 @@ fn game_tick(
             }
 
             let destination = *grid_coords + attempted_direction.calculate_vector();
+            let wall_hug_destination = *grid_coords + current_direction.calculate_vector();
 
             if !level_walls.in_wall(&destination) {
                 // not wall
@@ -115,11 +109,11 @@ fn game_tick(
                 player.direction = attempted_direction;
             } else {
                 // wall, check for hugs
-                let wall_hug_destination = *grid_coords + current_direction.calculate_vector();
                 if !level_walls.in_wall(&wall_hug_destination) {
                     player.list_next_directions.insert(0, attempted_direction);
                     *grid_coords = wall_hug_destination;
                 }
+                // TODO: check if the second action one is good
             }
         }
     }
