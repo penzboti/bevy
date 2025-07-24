@@ -75,12 +75,17 @@ pub fn init_train(
             if level_iid != &LevelIid::from(crate::level::START_IID.to_owned()) {
                 return;
             }
+
             for carriage in carriage_query {
-                if train.carriages.contains(carriage) {continue;}
+                if train.carriages.contains(carriage) {
+                    continue;
+                }
                 train.carriages.push(*carriage);
             }
             for track in track_query {
-                if train.tracks.contains(track) {continue;}
+                if train.tracks.contains(track) {
+                    continue;
+                }
                 train.tracks.push(*track);
             }
             train.tracks.sort_by(|a, b| a.y.cmp(&b.y));
@@ -88,8 +93,10 @@ pub fn init_train(
 
             // NOTE: only the head carriage is spawned in from ldtk
             for i in 0..CARRIAGE_NUMBER {
-                // we need to space out the carriages at spawn
+                // we need to space out the carriages at spawn (explained in move_carriages)
                 let position = first_position + GridCoords::new(0, -1 - i as i32);
+                train.carriages.push(position);
+
                 commands.spawn((
                     Sprite::from_atlas_image(
                         asset_server.load("sprites/Carriage.png"),
@@ -112,7 +119,6 @@ pub fn init_train(
                     position,
                     Carriage {},
                 ));
-                train.carriages.push(position);
             }
         }
     }
@@ -136,12 +142,17 @@ fn spawn_track(
     }
     let (coords, player) = player_query.single().unwrap();
 
-    if train.tracks.clone().contains(coords) { return; }
+    if train.tracks.clone().contains(coords) {
+        return;
+    }
+
+    train.tracks.push(coords.clone());
+
     let new_track = Track {
         direction_from: player.previous_direction.clone(),
         direction_to: player.direction.clone(),
     };
-    // INFO: https://bevy.org/examples/2d-rendering/sprite-sheet/
+
     commands.spawn((
         Sprite::from_atlas_image(
             asset_server.load("sprites/Track.png"),
@@ -162,7 +173,6 @@ fn spawn_track(
         coords.clone(),
         new_track,
     ));
-    train.tracks.push(coords.clone());
 }
 
 fn move_carriages(
@@ -174,15 +184,18 @@ fn move_carriages(
 ) {
     if timer.finished() {
         let mut carriages = train.carriages.clone();
-        if carriages.len() == 0 || train.tracks.len() == 0 {return;}
+        if carriages.len() == 0 || train.tracks.len() == 0 {
+            return;
+        }
 
         let len = carriages.clone().len();
-        carriages.reverse(); // if lag then don't reverse
-        for i in 0..len - 1 {
-            carriages[i] = carriages[i + 1];
+        for i in 1..len {
+            let pos = carriages.clone().len() - i;
+            let next_pos = pos - 1;
+            carriages[pos] = carriages[next_pos];
         }
-        carriages.reverse();
 
+        // head carriage (using the next track)
         let current_coords = carriages[0];
         let current_index = train
             .tracks
@@ -194,13 +207,17 @@ fn move_carriages(
             .iter()
             .nth(current_index + 1)
             .unwrap_or(&current_coords);
-
         carriages[0] = *next_coords;
+
+        // the query won't return the carriages in order
+        // luckily every one should be at a different position already so we can use that
         let index_table: Vec<usize> = carriage_query
             .iter()
             .clone()
             .map(|coords| train.carriages.iter().position(|c| c == coords).unwrap())
             .collect();
+
+        // updating variables
         for (i, mut coords) in carriage_query.iter_mut().enumerate() {
             let index = index_table[i];
             *coords = carriages[index];

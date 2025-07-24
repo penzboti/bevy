@@ -19,18 +19,22 @@ fn main() {
         .run();
 }
 
-// NOTE: constants
-pub const GRID_SIZE: i32 = 16; // pixel size i think; doesn't seem to affect the world (only
-// entities, which dissappear?)
+pub const GRID_SIZE: i32 = 16; // pixel size i think; doesn't affect the world (only entities)
 const SECONDS_PER_TICK: f32 = 0.5;
-pub const CARRIAGE_NUMBER: isize = 2;
+pub const CARRIAGE_NUMBER: isize = 5;
 
 fn setup(mut commands: Commands) {
+    // easier testing
+    #[cfg(target_os = "windows")]
+    let scale = 0.5;
+    #[cfg(target_os = "linux")]
+    let scale = 1;
+
     // camera
     commands.spawn((
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
-            scale: 1., // bigger the number smaller the world
+            scale, // bigger the number smaller the world
             ..OrthographicProjection::default_2d()
         }),
         Transform::from_xyz(1280.0 / 4.0, 720.0 / 4.0, 0.0),

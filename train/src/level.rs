@@ -2,8 +2,6 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 use std::collections::HashSet;
 
-use crate::GRID_SIZE;
-
 pub const START_IID: &str = "4d96be30-5e50-11f0-a5b5-af79102484b9";
 const LEVEL_IIDS: [&str; 1] = [
     "42c222c0-5e50-11f0-b1e7-dbe8e4236e84",
@@ -23,17 +21,12 @@ impl Plugin for LevelPlugin {
 
 #[derive(Resource)]
 struct WorldHandler {
-    loaded_worlds: Vec<LevelIid>
-}
-
-#[derive(Component)]
-struct Tile {
-    pub grid_coords: GridCoords,
+    loaded_worlds: Vec<LevelIid>, // TODO: separate loaded and cached
 }
 
 #[derive(Default, Component)]
 struct Wall {
-    level: LevelIid // an idea, unimplemented
+    level: LevelIid, // an idea, unimplemented
 }
 #[derive(Default, Bundle, LdtkIntCell)]
 struct WallBundle {
@@ -43,8 +36,6 @@ struct WallBundle {
 #[derive(Default, Debug, Clone, Resource)]
 pub struct LevelWalls {
     wall_locations: HashSet<GridCoords>,
-    level_width: i32,
-    level_height: i32,
 }
 
 impl LevelWalls {
@@ -65,8 +56,8 @@ fn setup_world(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.init_resource::<LevelWalls>();
     // initiating world handler
     commands.insert_resource(WorldHandler {
-        // loaded_worlds: vec![LevelIid::from(START_IID.to_owned())] // TODO: separate loaded and cached
-        loaded_worlds: vec![]
+        loaded_worlds: vec![],
+        // loaded_worlds: vec![LevelIid::from(START_IID.to_owned())]
     });
 }
 
@@ -93,37 +84,41 @@ fn cache_wall_locations(
 ) -> Result {
     for level_event in level_events.read() {
         if let LevelEvent::Spawned(level_iid) = level_event {
-            // i have not figured out what handle is
-            // i should read the tutorial but i cant w/o internet
             // maybe i could the levels one by one and then cache the walls separetly
             // level -> new walls -> level -> new walls
             // and then the world handler handling it
             // spanning multiple cycles
-            for handle in ldtk_project_entities {
-                // println!("{:?}", handle);
-                // println!("b4 {:?}", world_handler.loaded_worlds);
-                if world_handler.loaded_worlds.contains(level_iid) {return Ok(());}
-                world_handler.loaded_worlds.push(level_iid.clone());
-                // println!("4ftr {:?}", world_handler.loaded_worlds);
-                let ldtk_project = ldtk_project_assets
-                    .get(handle)
-                    .expect("LdtkProject should be loaded when level is spawned");
-                let level = ldtk_project
-                    .get_raw_level_by_iid(level_iid.get())
-                    .expect("spawned level should exist in project");
 
-                let wall_locations = walls.iter().copied().collect();
+            // i would think i need it later
+            // for handle in ldtk_project_entities {
+            // one handle should have every level data already
+            // but i cant just ldtk_project_entities[i]
 
-                let new_level_walls = LevelWalls {
-                    wall_locations,
-                    level_width: level.px_wid / GRID_SIZE,
-                    level_height: level.px_hei / GRID_SIZE,
-                };
-
-                *level_walls = new_level_walls.clone();
-                println!("{:?}", new_level_walls.wall_locations.len());
-                println!("{:?}", level_iid.get());
+            // println!("{:?}", handle);
+            // println!("b4 {:?}", world_handler.loaded_worlds);
+            if world_handler.loaded_worlds.contains(level_iid) {
+                return Ok(());
             }
+            world_handler.loaded_worlds.push(level_iid.clone());
+            // println!("4ftr {:?}", world_handler.loaded_worlds);
+
+            // all this to get the level width & height btw
+            // and the handle thing aswell
+            // let ldtk_project = ldtk_project_assets
+            //     .get(handle)
+            //     .expect("LdtkProject should be loaded when level is spawned");
+            // let level = ldtk_project
+            //     .get_raw_level_by_iid(level_iid.get())
+            //     .expect("spawned level should exist in project");
+
+            let wall_locations = walls.iter().copied().collect();
+
+            let new_level_walls = LevelWalls { wall_locations };
+
+            *level_walls = new_level_walls.clone();
+            println!("{:?}", new_level_walls.wall_locations.len());
+            println!("{:?}", level_iid.get());
+            // }
         }
     }
     Ok(())
