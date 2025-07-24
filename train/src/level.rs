@@ -21,13 +21,20 @@ impl Plugin for LevelPlugin {
     }
 }
 
+#[derive(Resource)]
+struct WorldHandler {
+    loaded_worlds: Vec<LevelIid>
+}
+
 #[derive(Component)]
 struct Tile {
     pub grid_coords: GridCoords,
 }
 
 #[derive(Default, Component)]
-struct Wall;
+struct Wall {
+    level: LevelIid // an idea, unimplemented
+}
 #[derive(Default, Bundle, LdtkIntCell)]
 struct WallBundle {
     wall: Wall,
@@ -42,28 +49,28 @@ pub struct LevelWalls {
 
 impl LevelWalls {
     pub fn in_wall(&self, grid_coords: &GridCoords) -> bool {
-        // grid_coords.x < 0
-        //     || grid_coords.y < 0
-        //     || grid_coords.x >= self.level_width
-        //     || grid_coords.y >= self.level_height
         self.wall_locations.contains(grid_coords)
     }
 }
 
-// only loads the initial level
 fn setup_world(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let level_set = LevelSet::from_iids([START_IID]);
+    // only loads the initial level
     commands.spawn(LdtkWorldBundle {
         ldtk_handle: asset_server.load("train.ldtk").into(),
-        level_set,
-        // transform: Transform::from_xyz(-256., -144., 0.),
+        level_set: LevelSet::from_iids([START_IID]),
         ..Default::default()
     });
+
     // setup walls
     commands.init_resource::<LevelWalls>();
+    // initiating world handler
+    commands.insert_resource(WorldHandler {
+        // loaded_worlds: vec![LevelIid::from(START_IID.to_owned())] // TODO: separate loaded and cached
+        loaded_worlds: vec![]
+    });
 }
 
-// loads levels, with the avaliable world bundles when requested
+// TODO: loads levels, with the avaliable world bundles when requested
 // TODO: make a resource to handle this
 fn load_level(mut commands: Commands, asset_server: Res<AssetServer>) {
     let level_set = LevelSet::from_iids(LEVEL_IIDS);
@@ -78,6 +85,7 @@ fn load_level(mut commands: Commands, asset_server: Res<AssetServer>) {
 // TODO: cant do multiple worlds (yet)
 fn cache_wall_locations(
     mut level_walls: ResMut<LevelWalls>,
+    mut world_handler: ResMut<WorldHandler>,
     mut level_events: EventReader<LevelEvent>,
     walls: Query<&GridCoords, With<Wall>>,
     ldtk_project_entities: Query<&LdtkProjectHandle>,
@@ -85,7 +93,18 @@ fn cache_wall_locations(
 ) -> Result {
     for level_event in level_events.read() {
         if let LevelEvent::Spawned(level_iid) = level_event {
+            // i have not figured out what handle is
+            // i should read the tutorial but i cant w/o internet
+            // maybe i could the levels one by one and then cache the walls separetly
+            // level -> new walls -> level -> new walls
+            // and then the world handler handling it
+            // spanning multiple cycles
             for handle in ldtk_project_entities {
+                // println!("{:?}", handle);
+                // println!("b4 {:?}", world_handler.loaded_worlds);
+                if world_handler.loaded_worlds.contains(level_iid) {return Ok(());}
+                world_handler.loaded_worlds.push(level_iid.clone());
+                // println!("4ftr {:?}", world_handler.loaded_worlds);
                 let ldtk_project = ldtk_project_assets
                     .get(handle)
                     .expect("LdtkProject should be loaded when level is spawned");
@@ -103,6 +122,7 @@ fn cache_wall_locations(
 
                 *level_walls = new_level_walls.clone();
                 println!("{:?}", new_level_walls.wall_locations.len());
+                println!("{:?}", level_iid.get());
             }
         }
     }

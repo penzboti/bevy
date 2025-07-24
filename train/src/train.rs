@@ -23,9 +23,9 @@ impl Plugin for TrainPlugin {
 
 // so it would have been cool if i could spawn ldtk entities
 // but i just didn't find enough resources to find out if it even exists
-// so i'm just spawning regular bevy entities; which are fine.
-// although the starting entities are present in ldtk;
-// few tracks and a head carriage
+// the ldtk entities are automatically load in and i just treat them like bevy entities
+// the rest i need i spawn in bevy way
+// ldtk: few tracks and a head carriage
 #[derive(Default, Resource)]
 pub struct Train {
     pub carriages: Vec<GridCoords>,
@@ -33,7 +33,7 @@ pub struct Train {
 }
 
 #[derive(Default, Component)]
-pub struct Carriage {}
+pub struct Carriage;
 #[derive(Default, Bundle, LdtkEntity)]
 struct CarriageBundle {
     carriage: Carriage,
@@ -75,19 +75,20 @@ pub fn init_train(
             if level_iid != &LevelIid::from(crate::level::START_IID.to_owned()) {
                 return;
             }
-            for track in track_query {
-                train.tracks.push(*track);
-            }
             for carriage in carriage_query {
+                if train.carriages.contains(carriage) {continue;}
                 train.carriages.push(*carriage);
             }
-            println!("{:?}", train.tracks);
-            println!("{:?}", train.carriages);
+            for track in track_query {
+                if train.tracks.contains(track) {continue;}
+                train.tracks.push(*track);
+            }
             train.tracks.sort_by(|a, b| a.y.cmp(&b.y));
             let first_position = train.carriages[0].clone();
 
             // NOTE: only the head carriage is spawned in from ldtk
             for i in 0..CARRIAGE_NUMBER {
+                // we need to space out the carriages at spawn
                 let position = first_position + GridCoords::new(0, -1 - i as i32);
                 commands.spawn((
                     Sprite::from_atlas_image(
@@ -125,26 +126,17 @@ fn spawn_track(
     player_query: Query<(&GridCoords, &player::Player), Changed<GridCoords>>,
 ) {
     // TODO: const these (or lazy static)
+    // although they didn't even work this time (hence the commenting)
     // let texture = asset_server.load("sprites/Track.png");
     // let layout = TextureAtlasLayout::from_grid(UVec2::splat(16), 8, 8, None, None);
     // let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-    let default_coords = GridCoords::new(0, 0); // borrow checker whining
     if player_query.is_empty() {
         return;
     }
     let (coords, player) = player_query.single().unwrap();
 
-    let coords_count = train
-        .tracks
-        .iter()
-        .filter(|&track| *track == *coords)
-        .count();
-
-    if coords_count != 0 {
-        // println!("multiple coords");
-        return;
-    }
+    if train.tracks.clone().contains(coords) { return; }
     let new_track = Track {
         direction_from: player.previous_direction.clone(),
         direction_to: player.direction.clone(),
@@ -182,12 +174,15 @@ fn move_carriages(
 ) {
     if timer.finished() {
         let mut carriages = train.carriages.clone();
+        if carriages.len() == 0 || train.tracks.len() == 0 {return;}
+
         let len = carriages.clone().len();
-        carriages.reverse();
+        carriages.reverse(); // if lag then don't reverse
         for i in 0..len - 1 {
             carriages[i] = carriages[i + 1];
         }
         carriages.reverse();
+
         let current_coords = carriages[0];
         let current_index = train
             .tracks

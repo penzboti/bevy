@@ -19,7 +19,9 @@ fn main() {
         .run();
 }
 
-pub const GRID_SIZE: i32 = 16; // pixel size i think
+// NOTE: constants
+pub const GRID_SIZE: i32 = 16; // pixel size i think; doesn't seem to affect the world (only
+// entities, which dissappear?)
 const SECONDS_PER_TICK: f32 = 0.5;
 pub const CARRIAGE_NUMBER: isize = 2;
 
@@ -28,7 +30,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
-            scale: 0.5,
+            scale: 1., // bigger the number smaller the world
             ..OrthographicProjection::default_2d()
         }),
         Transform::from_xyz(1280.0 / 4.0, 720.0 / 4.0, 0.0),
@@ -44,7 +46,7 @@ fn setup(mut commands: Commands) {
 }
 
 #[derive(Default, Clone, PartialEq, Debug)]
-pub enum Direction {
+enum Direction {
     #[default]
     North,
     South,
@@ -74,7 +76,6 @@ impl Direction {
 #[derive(Resource, Deref, DerefMut)]
 pub struct GameTickTimer(Timer);
 
-// TODO: separate tick system for each plugin (so separate player from here)
 fn game_tick(time: Res<Time>, mut timer: ResMut<GameTickTimer>) {
     timer.tick(time.delta());
 }

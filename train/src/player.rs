@@ -126,9 +126,9 @@ fn move_player(
                 // wall, check for hugs
                 if !level_walls.in_wall(&wall_hug_destination) {
                     player.list_next_directions.insert(0, first_action);
-                    // player.list_next_directions.push(first_action);
                     *grid_coords = wall_hug_destination;
                 } else {
+                    // first_action would have been in the wall but the second one isn't
                     if let Some(direction) = second_action.clone() {
                         if direction.clone() != current_direction.get_opposite() {
                             let destination = *grid_coords + direction.calculate_vector();
