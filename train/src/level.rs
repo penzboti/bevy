@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
+use rand::prelude::*;
 use std::collections::HashSet;
 
 use crate::GRID_SIZE;
@@ -46,7 +47,7 @@ struct WorldData {
 
 #[derive(Default, Component, Debug)]
 struct Wall {
-    level: LevelIid,
+    level_index: usize, // starts at 1 because it defaults to 0 (i want to assign each of them)
 }
 #[derive(Default, Bundle, LdtkIntCell)]
 struct WallBundle {
@@ -96,7 +97,8 @@ fn load_level(
         return;
     }
 
-    let id = LEVEL_IIDS[world_handler.loaded_worlds.len() - 1];
+    let mut rng = rand::rng();
+    let id = LEVEL_IIDS.choose(&mut rng).unwrap().to_owned();
     let iid = LevelIid::from(id.to_owned());
 
     world_handler.current_state = WorldLoadState::Loading;
@@ -126,17 +128,6 @@ fn cache_wall_locations(
             // one handle should have every level data already
             let handle = ldtk_project_entities.iter().nth(0).unwrap();
 
-            if world_handler
-                .loaded_worlds
-                .iter()
-                .filter(|data| &data.iid == level_iid)
-                .count()
-                > 0
-            {
-                return Ok(());
-            }
-
-            // get the level width & height
             let ldtk_project = ldtk_project_assets
                 .get(handle)
                 .expect("LdtkProject should be loaded when level is spawned");
@@ -157,22 +148,20 @@ fn cache_wall_locations(
                 width: level.px_wid,
                 top: height + prev_top,
             };
-            world_handler.loaded_worlds.push(world);
 
             for (mut location, mut wall) in walls.iter_mut() {
-                if wall.level != world_handler.loading_world.clone().unwrap()
-                    && wall.level != LevelIid::from("".to_owned())
-                {
+                if wall.level_index != 0 {
                     continue;
                 }
 
-                wall.level = level_iid.clone();
+                wall.level_index = world_handler.loaded_worlds.len() + 1;
 
                 let new_location = location.clone() + GridCoords::new(0, prev_top);
                 *location = new_location;
                 level_walls.wall_locations.insert(*location);
             }
 
+            world_handler.loaded_worlds.push(world);
             world_handler.current_state = WorldLoadState::Finished;
             world_handler.loading_world = None;
         }

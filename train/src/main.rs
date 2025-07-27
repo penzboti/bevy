@@ -16,18 +16,20 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, game_tick)
         .add_systems(Update, translate_grid_coords_entities)
+        .add_systems(Update, move_camera)
         .run();
 }
 
 pub const GRID_SIZE: i32 = 16; // pixel size i think; doesn't affect the world (only entities)
-const SECONDS_PER_TICK: f32 = 0.25;
+const TICKS_PER_SECOND: i32 = 5;
+const SECONDS_PER_TICK: f32 = 1. / TICKS_PER_SECOND as f32;
 pub const CARRIAGE_NUMBER: isize = 5;
-pub const LEVEL_NUMBER: usize = 4;
+pub const LEVEL_NUMBER: usize = 10;
 
 fn setup(mut commands: Commands) {
     // easier testing
     #[cfg(target_os = "windows")]
-    let scale = 2.;
+    let scale = 0.5;
     #[cfg(target_os = "linux")]
     let scale = 1.;
 
@@ -38,11 +40,11 @@ fn setup(mut commands: Commands) {
             scale, // bigger the number smaller the world
             ..OrthographicProjection::default_2d()
         }),
-        Transform::from_xyz(1280.0 / 4.0, 720.0 / 4.0, 0.0),
+        Transform::from_xyz(128., 0., 0.),
     ));
 
     // background color
-    commands.insert_resource(ClearColor(Color::srgb(0., 0., 0.)));
+    commands.insert_resource(ClearColor(Color::srgb(0., 0., 0.5)));
     // init tick system
     commands.insert_resource(GameTickTimer(Timer::from_seconds(
         SECONDS_PER_TICK,
@@ -91,5 +93,18 @@ fn translate_grid_coords_entities(
         transform.translation =
             bevy_ecs_ldtk::utils::grid_coords_to_translation(*grid_coords, IVec2::splat(GRID_SIZE))
                 .extend(transform.translation.z);
+    }
+}
+
+fn move_camera(
+    mut camera_query: Query<&mut Transform, With<Camera2d>>,
+    player_query: Query<&GridCoords, (With<player::Player>, Changed<GridCoords>)>,
+) {
+    if player_query.is_empty() || camera_query.is_empty() {
+        return;
+    }
+    let player = player_query.single().unwrap();
+    if let Ok(mut camera) = camera_query.single_mut() {
+        camera.translation.y = (player.y * GRID_SIZE) as f32;
     }
 }
