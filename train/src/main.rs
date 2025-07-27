@@ -20,15 +20,16 @@ fn main() {
 }
 
 pub const GRID_SIZE: i32 = 16; // pixel size i think; doesn't affect the world (only entities)
-const SECONDS_PER_TICK: f32 = 0.5;
+const SECONDS_PER_TICK: f32 = 0.25;
 pub const CARRIAGE_NUMBER: isize = 5;
+pub const LEVEL_NUMBER: usize = 4;
 
 fn setup(mut commands: Commands) {
     // easier testing
     #[cfg(target_os = "windows")]
-    let scale = 0.5;
+    let scale = 2.;
     #[cfg(target_os = "linux")]
-    let scale = 1;
+    let scale = 1.;
 
     // camera
     commands.spawn((
@@ -57,7 +58,6 @@ enum Direction {
     East,
     West,
 }
-
 impl Direction {
     fn get_opposite(&self) -> Direction {
         match self {
