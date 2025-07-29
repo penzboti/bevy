@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
 mod level;
+mod objective;
 mod player;
 mod train;
 
@@ -12,7 +13,12 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(LdtkPlugin)
-        .add_plugins((level::LevelPlugin, player::PlayerPlugin, train::TrainPlugin))
+        .add_plugins((
+            level::LevelPlugin,
+            player::PlayerPlugin,
+            train::TrainPlugin,
+            objective::ObjectivePlugin,
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, game_tick)
         .add_systems(Update, translate_grid_coords_entities)

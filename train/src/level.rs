@@ -7,10 +7,11 @@ use crate::GRID_SIZE;
 use crate::LEVEL_NUMBER;
 
 pub const START_IID: &str = "4d96be30-5e50-11f0-a5b5-af79102484b9";
-const LEVEL_IIDS: [&str; 3] = [
+const LEVEL_IIDS: [&str; 4] = [
     "42c222c0-5e50-11f0-b1e7-dbe8e4236e84",
     "0b33a750-5e50-11f0-b1e7-25e2d47bc36d",
     "34d7e6c0-5e50-11f0-b1e7-65faa10719f2",
+    "4d967011-5e50-11f0-a5b5-b533d53fa5b9",
 ];
 
 pub struct LevelPlugin;
